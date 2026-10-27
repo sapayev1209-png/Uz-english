@@ -1,0 +1,299 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Persistent learner profile, CEFR level, daily goal, streak, and aggregate progress for an Uzbek-speaking English learner.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user UID matching request.auth.uid."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Learner display name (1..100 chars)."
+        },
+        "email": {
+          "type": "string",
+          "description": "Learner email address (0..150 chars)."
+        },
+        "cefrLevel": {
+          "type": "string",
+          "enum": ["A1", "A2", "B1", "B2", "C1", "C2"],
+          "description": "Estimated or selected CEFR English proficiency level."
+        },
+        "learningGoal": {
+          "type": "string",
+          "description": "Selected learning goal in Uzbek/English (1..100 chars)."
+        },
+        "dailyGoalMinutes": {
+          "type": "integer",
+          "description": "Daily study goal in minutes (5..180)."
+        },
+        "placementCompleted": {
+          "type": "boolean",
+          "description": "Whether the learner has completed the initial placement test."
+        },
+        "placementScore": {
+          "type": "integer",
+          "description": "Score achieved on the placement test (0..100)."
+        },
+        "streakDays": {
+          "type": "integer",
+          "description": "Consecutive days of study streak."
+        },
+        "xpPoints": {
+          "type": "integer",
+          "description": "Total experience points earned."
+        },
+        "completedLessonsCount": {
+          "type": "integer",
+          "description": "Total number of grammar and skill lessons completed."
+        },
+        "wordsLearnedCount": {
+          "type": "integer",
+          "description": "Total number of vocabulary words marked as learned."
+        },
+        "todayMinutesDone": {
+          "type": "integer",
+          "description": "Minutes studied today."
+        },
+        "lastActivityDate": {
+          "type": "string",
+          "description": "ISO date string (YYYY-MM-DD) of last learning activity."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "email",
+        "cefrLevel",
+        "learningGoal",
+        "dailyGoalMinutes",
+        "placementCompleted",
+        "placementScore",
+        "streakDays",
+        "xpPoints",
+        "completedLessonsCount",
+        "wordsLearnedCount",
+        "todayMinutesDone",
+        "lastActivityDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VocabProgress": {
+      "title": "VocabProgress",
+      "description": "Per-word learning status, favorites, and spaced-repetition box for a user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user UID."
+        },
+        "wordId": {
+          "type": "string",
+          "description": "Vocabulary word identifier."
+        },
+        "english": {
+          "type": "string",
+          "description": "English word or phrase."
+        },
+        "uzbek": {
+          "type": "string",
+          "description": "Uzbek translation."
+        },
+        "learned": {
+          "type": "boolean",
+          "description": "Whether the word is marked learned."
+        },
+        "favorite": {
+          "type": "boolean",
+          "description": "Whether the word is bookmarked as favorite."
+        },
+        "masteryBox": {
+          "type": "integer",
+          "description": "Spaced repetition Leitner box (0..5)."
+        },
+        "nextReviewEpochDay": {
+          "type": "integer",
+          "description": "Epoch day when the word is next due for review."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "wordId",
+        "english",
+        "uzbek",
+        "learned",
+        "favorite",
+        "masteryBox",
+        "nextReviewEpochDay",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LessonProgress": {
+      "title": "LessonProgress",
+      "description": "Completion status and best quiz score for a grammar, listening, speaking, reading, or writing lesson.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user UID."
+        },
+        "lessonId": {
+          "type": "string",
+          "description": "Curriculum lesson identifier."
+        },
+        "skillType": {
+          "type": "string",
+          "enum": ["GRAMMAR", "VOCABULARY", "LISTENING", "SPEAKING", "READING", "WRITING", "PLACEMENT"],
+          "description": "Skill module category."
+        },
+        "title": {
+          "type": "string",
+          "description": "Lesson title."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the lesson was completed."
+        },
+        "bestScore": {
+          "type": "integer",
+          "description": "Highest percentage score achieved (0..100)."
+        },
+        "attemptsCount": {
+          "type": "integer",
+          "description": "Total number of attempts."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "lessonId",
+        "skillType",
+        "title",
+        "completed",
+        "bestScore",
+        "attemptsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "QuizAttemptRecord": {
+      "title": "QuizAttemptRecord",
+      "description": "Detailed record of a quiz or practice question attempt for mistake analytics and personalized revision.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user UID."
+        },
+        "lessonId": {
+          "type": "string",
+          "description": "Lesson or module ID."
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Question or prompt ID."
+        },
+        "skillType": {
+          "type": "string",
+          "enum": ["GRAMMAR", "VOCABULARY", "LISTENING", "SPEAKING", "READING", "WRITING", "PLACEMENT"],
+          "description": "Skill category."
+        },
+        "submittedAnswer": {
+          "type": "string",
+          "description": "Learner's submitted answer."
+        },
+        "isCorrect": {
+          "type": "boolean",
+          "description": "Whether the answer was correct."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Score earned (0..100)."
+        },
+        "errorCategory": {
+          "type": "string",
+          "description": "Grammar/skill error category for mistake tracking."
+        },
+        "feedbackUzbek": {
+          "type": "string",
+          "description": "Explanation or feedback shown to the learner in Uzbek."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "lessonId",
+        "questionId",
+        "skillType",
+        "submittedAnswer",
+        "isCorrect",
+        "score",
+        "errorCategory",
+        "feedbackUzbek",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Root user profile document keyed by authenticated userId."
+    },
+    "/users/{userId}/vocab_progress/{wordId}": {
+      "schema": { "$ref": "#/entities/VocabProgress" },
+      "description": "Per-user vocabulary progress and spaced repetition state."
+    },
+    "/users/{userId}/lesson_progress/{lessonId}": {
+      "schema": { "$ref": "#/entities/LessonProgress" },
+      "description": "Per-user lesson completion and best scores across skills."
+    },
+    "/users/{userId}/quiz_attempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/QuizAttemptRecord" },
+      "description": "Per-user quiz and practice attempt history for mistake tracking."
+    }
+  }
+}

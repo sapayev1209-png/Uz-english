@@ -1,0 +1,6 @@
+{
+  "name": "UzEnglish AI",
+  "description": "AI-powered English learning app for Uzbek speakers with structured A1-C2 grammar, vocabulary, listening, speaking, reading, and writing practice.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

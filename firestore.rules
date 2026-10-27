@@ -1,0 +1,234 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidCefrLevel(level) {
+      return level is string && level in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    }
+
+    function isValidSkillType(skill) {
+      return skill is string && skill in ['GRAMMAR', 'VOCABULARY', 'LISTENING', 'SPEAKING', 'READING', 'WRITING', 'PLACEMENT'];
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 150 &&
+             isValidCefrLevel(data.cefrLevel) &&
+             data.learningGoal is string && data.learningGoal.size() >= 1 && data.learningGoal.size() <= 100 &&
+             data.dailyGoalMinutes is int && data.dailyGoalMinutes >= 5 && data.dailyGoalMinutes <= 180 &&
+             data.placementCompleted is bool &&
+             data.placementScore is int && data.placementScore >= 0 && data.placementScore <= 100 &&
+             data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 10000 &&
+             data.xpPoints is int && data.xpPoints >= 0 && data.xpPoints <= 10000000 &&
+             data.completedLessonsCount is int && data.completedLessonsCount >= 0 && data.completedLessonsCount <= 10000 &&
+             data.wordsLearnedCount is int && data.wordsLearnedCount >= 0 && data.wordsLearnedCount <= 50000 &&
+             data.todayMinutesDone is int && data.todayMinutesDone >= 0 && data.todayMinutesDone <= 1440 &&
+             data.lastActivityDate is string && data.lastActivityDate.size() <= 30 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidVocabProgress(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.wordId is string && data.wordId.size() >= 1 && data.wordId.size() <= 64 &&
+             data.english is string && data.english.size() >= 1 && data.english.size() <= 120 &&
+             data.uzbek is string && data.uzbek.size() >= 1 && data.uzbek.size() <= 120 &&
+             data.learned is bool &&
+             data.favorite is bool &&
+             data.masteryBox is int && data.masteryBox >= 0 && data.masteryBox <= 5 &&
+             data.nextReviewEpochDay is int && data.nextReviewEpochDay >= 0 && data.nextReviewEpochDay <= 1000000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidLessonProgress(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.lessonId is string && data.lessonId.size() >= 1 && data.lessonId.size() <= 64 &&
+             isValidSkillType(data.skillType) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 150 &&
+             data.completed is bool &&
+             data.bestScore is int && data.bestScore >= 0 && data.bestScore <= 100 &&
+             data.attemptsCount is int && data.attemptsCount >= 1 && data.attemptsCount <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidQuizAttempt(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.lessonId is string && data.lessonId.size() >= 1 && data.lessonId.size() <= 64 &&
+             data.questionId is string && data.questionId.size() >= 1 && data.questionId.size() <= 64 &&
+             isValidSkillType(data.skillType) &&
+             data.submittedAnswer is string && data.submittedAnswer.size() <= 2000 &&
+             data.isCorrect is bool &&
+             data.score is int && data.score >= 0 && data.score <= 100 &&
+             data.errorCategory is string && data.errorCategory.size() <= 100 &&
+             data.feedbackUzbek is string && data.feedbackUzbek.size() <= 2000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'email', 'cefrLevel', 'learningGoal',
+                         'dailyGoalMinutes', 'placementCompleted', 'placementScore',
+                         'streakDays', 'xpPoints', 'completedLessonsCount', 'wordsLearnedCount',
+                         'todayMinutesDone', 'lastActivityDate', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'email', 'cefrLevel', 'learningGoal',
+                         'dailyGoalMinutes', 'placementCompleted', 'placementScore',
+                         'streakDays', 'xpPoints', 'completedLessonsCount', 'wordsLearnedCount',
+                         'todayMinutesDone', 'lastActivityDate', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'cefrLevel', 'learningGoal',
+                         'dailyGoalMinutes', 'placementCompleted', 'placementScore',
+                         'streakDays', 'xpPoints', 'completedLessonsCount', 'wordsLearnedCount',
+                         'todayMinutesDone', 'lastActivityDate', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      match /vocab_progress/{wordId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(wordId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(wordId) &&
+                         request.auth.uid == userId &&
+                         incoming().wordId == wordId &&
+                         incoming().keys().hasAll([
+                           'userId', 'wordId', 'english', 'uzbek', 'learned',
+                           'favorite', 'masteryBox', 'nextReviewEpochDay', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'wordId', 'english', 'uzbek', 'learned',
+                           'favorite', 'masteryBox', 'nextReviewEpochDay', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidVocabProgress(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(wordId) &&
+                         request.auth.uid == userId &&
+                         isValidVocabProgress(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().wordId == existing().wordId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'english', 'uzbek', 'learned', 'favorite',
+                           'masteryBox', 'nextReviewEpochDay', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(wordId) && request.auth.uid == userId;
+      }
+
+      match /lesson_progress/{lessonId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(lessonId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(lessonId) &&
+                         request.auth.uid == userId &&
+                         incoming().lessonId == lessonId &&
+                         incoming().keys().hasAll([
+                           'userId', 'lessonId', 'skillType', 'title',
+                           'completed', 'bestScore', 'attemptsCount', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'lessonId', 'skillType', 'title',
+                           'completed', 'bestScore', 'attemptsCount', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidLessonProgress(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(lessonId) &&
+                         request.auth.uid == userId &&
+                         isValidLessonProgress(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().lessonId == existing().lessonId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'skillType', 'title', 'completed', 'bestScore', 'attemptsCount', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(lessonId) && request.auth.uid == userId;
+      }
+
+      match /quiz_attempts/{attemptId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(attemptId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(attemptId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'lessonId', 'questionId', 'skillType',
+                           'submittedAnswer', 'isCorrect', 'score',
+                           'errorCategory', 'feedbackUzbek', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'lessonId', 'questionId', 'skillType',
+                           'submittedAnswer', 'isCorrect', 'score',
+                           'errorCategory', 'feedbackUzbek', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidQuizAttempt(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(attemptId) &&
+                         request.auth.uid == userId &&
+                         isValidQuizAttempt(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().lessonId == existing().lessonId &&
+                         incoming().questionId == existing().questionId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'submittedAnswer', 'isCorrect', 'score',
+                           'errorCategory', 'feedbackUzbek', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(attemptId) && request.auth.uid == userId;
+      }
+    }
+  }
+}
