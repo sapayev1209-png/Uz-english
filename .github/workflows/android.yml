@@ -1,3 +1,4 @@
+
 name: Android Debug APK CI
 
 on:
@@ -19,43 +20,112 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up JDK 21 (Temurin)
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: "21"
 
-      - name: Set up Android SDK and install API 36.1 platform
+      - name: Configure Firebase
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: |
-          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [ ! -d "$SDK_DIR" ]; then
-            echo "Error: Android SDK directory not found at $SDK_DIR" >&2
-            exit 1
+          set -euo pipefail
+
+          if [ ! -f app/google-services.json ]; then
+            if [ -z "${FIREBASE_GOOGLE_SERVICES_JSON:-}" ]; then
+              echo "::error::Firebase configuration is missing."
+              echo "Add the repository secret FIREBASE_GOOGLE_SERVICES_JSON containing the real google-services.json."
+              exit 1
+            fi
+
+            printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" \
+              > app/google-services.json
           fi
 
-          export ANDROID_HOME="$SDK_DIR"
-          export ANDROID_SDK_ROOT="$SDK_DIR"
-          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("app/google-services.json")
+          try:
+              data = json.loads(path.read_text(encoding="utf-8"))
+          except Exception:
+              raise SystemExit("Invalid app/google-services.json")
+
+          expected = "com.aistudio.uzenglish.kxmprz"
+          clients = data.get("client", [])
+
+          package_matches = [
+              c for c in clients
+              if c.get("client_info", {})
+                  .get("android_client_info", {})
+                  .get("package_name") == expected
+          ]
+
+          if not package_matches:
+              raise SystemExit(
+                  "Firebase config does not match the Android application ID."
+              )
+
+          has_web_client = any(
+              oauth.get("client_type") == 3
+              for client in package_matches
+              for oauth in client.get("oauth_client", [])
+          )
+
+          if not has_web_client:
+              raise SystemExit(
+                  "Firebase config has no Web OAuth client (client_type 3). "
+                  "Configure a Web OAuth client in Firebase/Google Cloud."
+              )
+
+          # Normalize formatting for the project's existing Gradle check.
+          path.write_text(
+              json.dumps(data, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          print("Firebase configuration validated.")
+          PY
+
+      - name: Set up Android SDK
+        run: |
+          set -euo pipefail
+
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+
+          test -d "$SDK_DIR" || {
+            echo "::error::Android SDK directory not found: $SDK_DIR"
+            exit 1
+          }
 
           CMDLINE_BIN="$SDK_DIR/cmdline-tools/latest/bin"
+
           if [ ! -x "$CMDLINE_BIN/sdkmanager" ]; then
-            CMDLINE_BIN="$(dirname "$(find "$SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -n 1)")"
-          fi
-          if [ -z "$CMDLINE_BIN" ] || [ ! -x "$CMDLINE_BIN/sdkmanager" ]; then
-            echo "Error: sdkmanager binary not found under $SDK_DIR/cmdline-tools" >&2
-            exit 1
+            SDKMANAGER="$(find "$SDK_DIR/cmdline-tools" \
+              -type f -name sdkmanager -print -quit)"
+
+            if [ -z "$SDKMANAGER" ]; then
+              echo "::error::sdkmanager not found."
+              exit 1
+            fi
+
+            CMDLINE_BIN="$(dirname "$SDKMANAGER")"
           fi
 
-          export PATH="$CMDLINE_BIN:$SDK_DIR/platform-tools:$PATH"
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
           echo "$CMDLINE_BIN" >> "$GITHUB_PATH"
           echo "$SDK_DIR/platform-tools" >> "$GITHUB_PATH"
 
           set +o pipefail
-          yes | "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" --licenses > /dev/null
+          yes | "$CMDLINE_BIN/sdkmanager" \
+            --sdk_root="$SDK_DIR" --licenses > /dev/null
           set -o pipefail
 
-          "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" --install \
+          "$CMDLINE_BIN/sdkmanager" \
+            --sdk_root="$SDK_DIR" \
+            --install \
             "platform-tools" \
             "platforms;android-36.1" \
             "build-tools;36.0.0"
@@ -66,55 +136,57 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Ensure Gradle Wrapper is executable
+      - name: Prepare build environment
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          fi
+          set -euo pipefail
 
-      - name: Prepare environment defaults (.env & debug.keystore)
-        run: |
-          if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+          test -f ./gradlew || {
+            echo "::error::Gradle wrapper ./gradlew is missing."
+            exit 1
+          }
+
+          chmod +x ./gradlew
+
+          if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
           fi
-          if [ ! -f "debug.keystore" ]; then
-            if [ -f "debug.keystore.base64" ]; then
-              base64 -d debug.keystore.base64 > debug.keystore
-            else
-              keytool -genkeypair -v \
-                -keystore debug.keystore \
-                -storepass android \
-                -alias androiddebugkey \
-                -keypass android \
-                -keyalg RSA \
-                -keysize 2048 \
-                -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US"
-            fi
+
+          if [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Run Unit Tests
+      - name: Run unit tests
         run: |
-          if [ -x "./gradlew" ]; then
-            ./gradlew :app:testDebugUnitTest --tests "com.example.ExampleUnitTest" --tests "com.example.ExampleRobolectricTest" --no-daemon
-          else
-            gradle :app:testDebugUnitTest --tests "com.example.ExampleUnitTest" --tests "com.example.ExampleRobolectricTest" --no-daemon
+          ./gradlew \
+            :app:testDebugUnitTest \
+            --tests "com.example.ExampleUnitTest" \
+            --tests "com.example.ExampleRobolectricTest" \
+            --no-daemon
+
+      - name: Build debug APK
+        run: |
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -s "$APK" ]; then
+            echo "::error::APK was not generated or is empty."
+            exit 1
           fi
 
-      - name: Assemble Debug APK
-        run: |
-          if [ -x "./gradlew" ]; then
-            ./gradlew :app:assembleDebug --no-daemon --stacktrace
-          else
-            gradle :app:assembleDebug --no-daemon --stacktrace
-          fi
+          ls -lh "$APK"
 
-      - name: Verify generated APK exists
-        run: |
-          ls -lh app/build/outputs/apk/debug/
-          test -f app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload Debug APK Artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
           name: uzenglish-ai-debug-apk
