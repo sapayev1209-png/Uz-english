@@ -21,6 +21,17 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    val googleServicesFile = file("google-services.json")
+    val hasWebClientIdInGoogleServices =
+      googleServicesFile.exists() &&
+        googleServicesFile.readText().let { content ->
+          content.contains("\"package_name\": \"com.aistudio.uzenglish.kxmprz\"") &&
+            content.contains("\"client_type\": 3")
+        }
+    if (!hasWebClientIdInGoogleServices) {
+      resValue("string", "default_web_client_id", "")
+    }
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
