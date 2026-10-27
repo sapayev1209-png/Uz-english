@@ -25,13 +25,43 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK licenses and install API 36.1 platform
+      - name: Set up Android SDK and install API 36.1 platform
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" || sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_DIR" ]; then
+            echo "Error: Android SDK directory not found at $SDK_DIR" >&2
+            exit 1
+          fi
+
+          export ANDROID_HOME="$SDK_DIR"
+          export ANDROID_SDK_ROOT="$SDK_DIR"
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+
+          CMDLINE_BIN="$SDK_DIR/cmdline-tools/latest/bin"
+          if [ ! -x "$CMDLINE_BIN/sdkmanager" ]; then
+            CMDLINE_BIN="$(dirname "$(find "$SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -n 1)")"
+          fi
+          if [ -z "$CMDLINE_BIN" ] || [ ! -x "$CMDLINE_BIN/sdkmanager" ]; then
+            echo "Error: sdkmanager binary not found under $SDK_DIR/cmdline-tools" >&2
+            exit 1
+          fi
+
+          export PATH="$CMDLINE_BIN:$SDK_DIR/platform-tools:$PATH"
+          echo "$CMDLINE_BIN" >> "$GITHUB_PATH"
+          echo "$SDK_DIR/platform-tools" >> "$GITHUB_PATH"
+
+          set +o pipefail
+          yes | "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" --licenses > /dev/null
+          set -o pipefail
+
+          "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" --install \
+            "platform-tools" \
+            "platforms;android-36.1" \
+            "build-tools;36.0.0"
+
+          test -d "$SDK_DIR/platforms/android-36.1"
+          test -d "$SDK_DIR/build-tools/36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
